@@ -98,6 +98,7 @@ class YesPosClient:
                 logger.info("YesPOS: клиент создан: %s", client.get("name"))
 
                 await self._set_bonus_card(
+                    name=client.get("name", ""),
                     barcode=client.get("barcode", ""),
                     bonus_percent=client.get("bonus_percent", ""),
                 )
@@ -113,22 +114,27 @@ class YesPosClient:
                     pass
                 return {"success": False, "error": str(e)}
 
-    async def _set_bonus_card(self, barcode: str = "", bonus_percent: str = ""):
+    async def _set_bonus_card(
+        self, name: str = "", barcode: str = "", bonus_percent: str = ""
+    ):
         """
-        После создания клиента список автоматически показывает нового
-        клиента первой строкой. Открываем меню карт лояльности для этой
-        строки, меняем тип карты на "Бонусная карта", задаём баркод и
-        процент бонуса.
+        Открываем меню карт лояльности для строки только что созданного
+        клиента (находим её по имени, а не по позиции в таблице - список
+        не всегда показывает нового клиента первой строкой), меняем тип
+        карты на "Бонусная карта", задаём баркод и процент бонуса.
         """
         page = self._page
 
         # Ждём, что список клиентов отобразился (диалог создания закрылся)
         await page.wait_for_timeout(1000)
 
-        # Кнопка со скидками/картами - первая строка таблицы (новый клиент)
-        discounts_btn = page.locator(
-            "button[aria-label='discounts']"
-        ).first
+        # Находим строку таблицы именно созданного клиента по имени,
+        # а не просто первую строку - иначе можно попасть на карту
+        # соседнего клиента.
+        row = page.locator("tr", has_text=name).first
+        await row.wait_for(state="visible", timeout=15000)
+
+        discounts_btn = row.locator("button[aria-label='discounts']")
         await discounts_btn.wait_for(state="visible", timeout=15000)
         await discounts_btn.click()
         await page.wait_for_timeout(500)
