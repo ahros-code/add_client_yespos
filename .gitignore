@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+debug_calendar.png
+last_error.png
+.venv/
+venv/
