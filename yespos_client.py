@@ -149,7 +149,7 @@ class YesPosClient:
         row = page.locator("tr", has_text=name).first
         await row.wait_for(state="visible", timeout=15000)
 
-        discounts_btn = row.locator("button[aria-label='discounts']")
+        discounts_btn = row.locator("button[aria-label='Chegirmalar']")
         await discounts_btn.wait_for(state="visible", timeout=15000)
         await discounts_btn.click()
         await page.wait_for_timeout(500)
