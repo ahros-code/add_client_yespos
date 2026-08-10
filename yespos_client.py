@@ -131,9 +131,16 @@ class YesPosClient:
         # Баг YesPOS: кнопка "discounts" иногда не реагирует на клик после
         # создания клиента, пока страница не перезагружена. Вместо того
         # чтобы ждать/ретраить клик, просто обновляем страницу и кликаем
-        # на свежем DOM.
+        # на свежем DOM. Переход по "Mijozlar" делается кликами (не сменой
+        # URL), поэтому после reload() нужно заново дойти до списка клиентов -
+        # иначе reload() может выкинуть на дефолтный экран (например, дашборд),
+        # и строка/кнопка ниже просто не найдутся.
         await page.reload()
         await page.wait_for_load_state("networkidle")
+        await page.wait_for_timeout(1000)
+        await page.get_by_text("Mijozlar", exact=True).first.click()
+        await page.wait_for_timeout(1000)
+        await page.get_by_text("Mijozlar", exact=True).last.click()
         await page.wait_for_timeout(1000)
 
         # Находим строку таблицы именно созданного клиента по имени,
