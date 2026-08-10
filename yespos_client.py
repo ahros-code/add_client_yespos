@@ -128,32 +128,46 @@ class YesPosClient:
         # Ждём, что список клиентов отобразился (диалог создания закрылся)
         await page.wait_for_timeout(1000)
 
-        # Баг YesPOS: список клиентов не обновляется сам по себе после
-        # создания нового клиента - строка появляется только после
-        # перезагрузки страницы. Переход по "Mijozlar" делается кликами
-        # (не сменой URL), поэтому после reload() нужно заново дойти до
-        # списка клиентов - иначе reload() может выкинуть на дефолтный
-        # экран (например, дашборд).
-        await page.reload()
+        # Новый клиент не всегда виден на текущей странице/сортировке
+        # таблицы (список большой и постранично не гарантирует, что
+        # новый клиент окажется на первой странице). Используем строку
+        # поиска таблицы ("Qidirish...") вместо сканирования видимых
+        # строк - так находим клиента независимо от сортировки/пагинации.
+        search_input = page.get_by_placeholder("Qidirish...")
+        await search_input.wait_for(state="visible", timeout=15000)
+        await search_input.fill(name)
+        # Поиск асинхронный (запрос к серверу с debounce). Даём debounce
+        # время сработать, прежде чем ждать "networkidle" - иначе эта
+        # проверка может успеть пройти ДО того, как запрос вообще ушёл.
+        await page.wait_for_timeout(800)
         await page.wait_for_load_state("networkidle")
-        await page.wait_for_timeout(1000)
-        await page.get_by_text("Mijozlar", exact=True).first.click()
-        await page.wait_for_timeout(1000)
-        await page.get_by_text("Mijozlar", exact=True).last.click()
-        await page.wait_for_timeout(1000)
 
         # Находим строку таблицы именно созданного клиента по имени,
         # а не просто первую строку - иначе можно попасть на карту
-        # соседнего клиента.
-        row = page.locator("tr", has_text=name).first
+        # соседнего клиента. MUI DataGrid рендерит строки как div[role='row'],
+        # а не <tr> - обычный тег "tr" в разметке вообще не встречается.
+        row = page.locator("div[role='row']", has_text=name).first
         await row.wait_for(state="visible", timeout=15000)
 
-        discounts_btn = row.locator("button[aria-label='Chegirmalar']")
+        client_id = await row.get_attribute("data-id")
+        if not client_id:
+            raise RuntimeError(f"Не удалось определить data-id клиента '{name}'")
+
+        # Кнопка "Chegirmalar" не находится внутри этой же строки: колонка
+        # "Amallar" закреплена (pinned columns), и MUI рендерит её отдельной
+        # "теневой" копией строки с тем же data-id, но без остальных ячеек.
+        # Поэтому ищем кнопку по data-id по всей странице, а не через row.
+        # (Прямой переход по URL клиента не работает - это client-side роут
+        # и при жёсткой навигации/reload SPA просто откатывается на список.)
+        discounts_btn = page.locator(
+            f"div[role='row'][data-id='{client_id}'] button[aria-label='Chegirmalar']"
+        )
         await discounts_btn.wait_for(state="visible", timeout=15000)
         await discounts_btn.click()
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(800)
 
-        # В открывшемся меню нажимаем "Tahrirlash" (редактировать)
+        # Клик открывает отдельную вкладку со списком карт лояльности клиента.
+        # На ней "Tahrirlash" уже однозначна (единственная строка - карта клиента).
         edit_btn = page.locator("button[aria-label='Tahrirlash']").first
         await edit_btn.wait_for(state="visible", timeout=10000)
         await edit_btn.click()

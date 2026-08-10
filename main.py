@@ -66,7 +66,7 @@ def _require_env(name: str) -> str:
 ORG_ID = _require_env("YESPOS_ORG_ID")
 LOGIN = _require_env("YESPOS_LOGIN")
 PASSWORD = _require_env("YESPOS_PASSWORD")
-HEADLESS = True
+HEADLESS = os.getenv("YESPOS_HEADLESS", "true").lower() != "false"
 
 # =====================================================
 
